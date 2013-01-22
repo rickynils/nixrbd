@@ -1,0 +1,17 @@
+Name:          nixrbd
+Version:       0.0
+Synopsis:      NixOS Remote Boot Daemon
+Description:   NixOS Remote Boot Daemon
+Author:        Rickard Nilsson
+Maintainer:    rickynils@gmail.com
+Stability:     Experimental
+Category:      System
+Build-type:    Simple
+Cabal-version: >=1.2
+
+Executable nixrbd
+  main-is: Main.hs
+
+  Build-depends:
+    base >= 4 && < 5,
+    cmdargs
