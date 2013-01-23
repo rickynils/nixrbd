@@ -14,4 +14,8 @@ Executable nixrbd
 
   Build-depends:
     base >= 4 && < 5,
-    cmdargs
+    bytestring,
+    cmdargs,
+    http-types,
+    wai,
+    warp

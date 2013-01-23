@@ -8,5 +8,10 @@ cabal.mkDerivation (self: {
   isLibrary = false;
   isExecutable = true;
   src = ./.;
-  buildDepends = [ cmdargs ];
+  buildDepends = [
+    cmdargs
+    httpTypes
+    wai
+    warp
+  ];
 })
