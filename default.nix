@@ -11,6 +11,8 @@ cabal.mkDerivation (self: {
   buildDepends = [
     cmdargs
     httpTypes
+    text
+    transformers
     wai
     warp
   ];
