@@ -8,20 +8,29 @@ import qualified Network.Wai.Handler.Warp as W
 import System.Console.CmdArgs
 
 data Nixrbd = Nixrbd {
-  port :: Int
+  nixrbdPort :: Int,
+  nixrbdConfigFile :: FilePath
 } deriving (Show, Data, Typeable)
 
-nixrbdOpts = Nixrbd {
-  port = 8000
-}
+nixrbdDefs = Nixrbd
+  { nixrbdPort = 8000
+    &= explicit
+    &= name "p" &= name "port"
+    &= help "TCP port to bind to"
+  , nixrbdConfigFile = ""
+    &= explicit
+    &= typFile
+    &= name "c" &= name "configfile"
+    &= help "Path to configuration file"
+  } &= summary "Nix Remote Boot Daemon v0.0"
 
-warpSettings :: Nixrbd -> W.Settings
 warpSettings opts = W.defaultSettings {
-  W.settingsPort = port opts
+  W.settingsPort = nixrbdPort opts
 }
 
 main = do
-  opts @ Nixrbd { } <- cmdArgs nixrbdOpts
+  opts @ Nixrbd { nixrbdConfigFile = cf } <- cmdArgs nixrbdDefs
+  putStrLn (show $ nixrbdPort opts)
   W.runSettings (warpSettings opts) app
 
 app :: Application
