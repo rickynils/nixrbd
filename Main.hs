@@ -3,11 +3,14 @@ module Main where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
-import Data.Text (unpack)
+import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
 import qualified Network.Wai.Handler.Warp as W
 import System.Console.CmdArgs
+import System.Exit
+import System.Process (readProcessWithExitCode)
+import qualified System.Directory as Dir
 
 data Nixrbd = Nixrbd
   { nixrbdPort :: Int
@@ -50,10 +53,10 @@ app opts req = case lookup p $ nixrbdMap opts of
   Nothing -> respondNotFound
   Just f -> liftIO (nixBuild opts f) >>= either respondFailed serveFile
   where
-    p = head $ map unpack (pathInfo req) ++ ["/"]
+    p = head $ map T.unpack (pathInfo req) ++ ["/"]
     stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
     respondFailed err = do
-      liftIO $ putStrLn $ "[500] Build failed for "++p++": "++show err
+      liftIO $ putStrLn $ "[500] Build failed for "++p++": "++err
       stringResp internalServerError500 ("Failed building: "++p)
     respondNotFound = do
       liftIO $ putStrLn $ "[404] No map for "++p
@@ -63,8 +66,20 @@ app opts req = case lookup p $ nixrbdMap opts of
       return $ ResponseFile status200 [] filePath Nothing
 
 
--- Work in progress
 nixBuild :: Nixrbd -> String -> IO (Either String String)
-nixBuild _ nixFile = case nixFile of
-  "err" -> return $ Left "Error!"
-  _ -> return $ Right nixFile
+nixBuild opts nixFile = do
+  let nixArgs = "-Q" : map ("-I "++) (nixrbdNixPath opts)
+  (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" (nixFile:nixArgs) ""
+  let [o1',e1'] = map (T.unpack . T.strip . T.pack) [o1,e1]
+  if (r1 /= ExitSuccess)
+    then return $ Left $ "nix-instantiate failed: "++e1'
+    else do
+      (r2,o2,e2) <- readProcessWithExitCode "nix-store" ["-r",o1'] ""
+      let [o2',e2'] = map (T.unpack . T.strip . T.pack) [o2,e2]
+      if (r2 /= ExitSuccess)
+        then return $ Left $ "nix-store failed: "++e2'
+        else do
+          exists <- Dir.doesFileExist o2'
+          return $ if not exists
+            then Left $ "nix-store output not a file: "++o2'
+            else Right o2'
