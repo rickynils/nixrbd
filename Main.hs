@@ -17,6 +17,7 @@ data Nixrbd = Nixrbd
   , nixrbdConfigFile :: FilePath
   , nixrbdMap :: [(String,String)]
   , nixrbdNixPath :: [String]
+  , nixrbdDefaultExpr :: FilePath
   } deriving (Show, Data, Typeable)
 
 nixrbdDefs :: Nixrbd
@@ -38,6 +39,10 @@ nixrbdDefs = Nixrbd
     &= explicit
     &= name "I"
     &= help "Add a path used by nix-build"
+  , nixrbdDefaultExpr = ""
+    &= explicit
+    &= name "d" &= name "default"
+    &= help "Map all un-mapped requests to this Nix file"
   } &= summary "Nix Remote Boot Daemon v0.0"
 
 
@@ -49,10 +54,12 @@ main = do
 
 
 app :: Nixrbd -> Application
-app opts req = case lookup p $ nixrbdMap opts of
-  Nothing -> respondNotFound
-  Just f -> liftIO (nixBuild opts f) >>= either respondFailed serveFile
+app opts req = case (lookup p $ nixrbdMap opts, nixrbdDefaultExpr opts) of
+  (Nothing, "") -> respondNotFound
+  (Nothing, f) -> build f
+  (Just f, _) -> build f
   where
+    build f = liftIO (nixBuild opts f) >>= either respondFailed serveFile
     p = head $ map T.unpack (pathInfo req) ++ ["/"]
     stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
     respondFailed err = do
