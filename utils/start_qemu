@@ -1,0 +1,25 @@
+#!/bin/sh
+
+set -e
+
+handler=$1
+dir=`readlink -m $(dirname $0)`
+
+echo "Building nixrbd..."
+nixrbd=`nix-build -Q --no-out-link -A nixrbd "$dir/../pkgs.nix"`/bin/nixrbd
+echo "nixrbd = $nixrbd"
+
+echo "Building qemu..."
+qemu=`nix-build -Q --no-out-link -A qemu "<nixpkgs>"`/bin/qemu-system-x86_64
+echo "qemu = $qemu"
+
+echo "Building ipxe..."
+ipxe=`nix-build -Q --no-out-link --argstr imageType iso --arg embeddedScript "$dir/chain.ipxe" "$dir/ipxe.nix"`
+echo "ipxe = $ipxe"
+
+# Start nixrbd in the background, kill it on exit
+$nixrbd -d "$handler" &
+nixrbdPid=$!
+trap "{ kill $nixrbdPid; exit 255; }" EXIT
+
+$qemu -net nic -net user -cdrom $ipxe

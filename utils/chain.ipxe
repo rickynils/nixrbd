@@ -1,0 +1,12 @@
+#!ipxe
+
+:dhcp_retry
+dhcp || goto dhcp_retry
+
+:chain_retry
+chain http://10.0.2.2:8000 || goto chain_failed
+
+:chain_failed
+echo Failed contacting boot server, will retry indefinitely
+sleep 3
+goto chain_retry
