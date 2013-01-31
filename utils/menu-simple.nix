@@ -4,17 +4,14 @@ writeText "menu.ipxe" ''
   #!ipxe
 
   :menu_root
-  menu Please select a boot alternative
-  item menu_sub    Submenu
-  item
-  item shell       Enter iPXE shell
-  choose target && goto ''${target}
+  menu Select a boot alternative
+  item memtest Run Memtest
+  item shell   Enter iPXE shell
+  choose target && goto ''${target} || goto menu_root
 
   :shell
   shell && goto menu_root
 
-  :menu_sub
-  menu Boot menu
-  item menu_root      Go back to main menu
-  choose target && goto ''${target}
+  :memtest
+  chain http://boot.ipxe.org/memtest.0
 ''

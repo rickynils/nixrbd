@@ -2,7 +2,6 @@
 
 set -e
 
-handler=$1
 dir=`readlink -m $(dirname $0)`
 
 echo "Building nixrbd..."
@@ -18,7 +17,7 @@ ipxe=`nix-build -Q --no-out-link --argstr imageType iso --arg embeddedScript "$d
 echo "ipxe = $ipxe"
 
 # Start nixrbd in the background, kill it on exit
-$nixrbd -d "$handler" &
+$nixrbd "$@" &
 nixrbdPid=$!
 trap "{ kill $nixrbdPid; exit 255; }" EXIT
 
