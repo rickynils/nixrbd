@@ -16,6 +16,7 @@ Executable nixrbd
                  bytestring,
                  cmdargs,
                  directory,
+                 filepath,
                  http-types,
                  process,
                  text,
