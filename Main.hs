@@ -3,6 +3,7 @@ module Main where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
+import Data.List (intersperse)
 import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
@@ -79,7 +80,7 @@ app opts req = case (lookup p $ nixrbdMap opts, nixrbdDefaultExpr opts) of
 
 nixBuild :: Nixrbd -> String -> IO (Either String String)
 nixBuild opts nixFile = do
-  let nixArgs = "-Q" : map ("-I "++) (nixrbdNixPath opts)
+  let nixArgs = "-Q" : "-I" : intersperse "-I" (nixrbdNixPath opts)
   (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" (nixFile:nixArgs) ""
   let [o1',e1'] = map (T.unpack . T.strip . T.pack) [o1,e1]
   if r1 /= ExitSuccess
