@@ -100,7 +100,7 @@ nixBuild args file = do
 nixArgs :: Nixrbd -> Request -> [String]
 nixArgs opts req =
   "--arg" : "request" : reqToNix req :
-  "-Q" : "-I" : intersperse "-I" (nixrbdNixPath opts)
+  "-Q" : concat [["-I",p] | p <- nixrbdNixPath opts]
 
 listToNix xs = "[" ++ intercalate " " (map show xs) ++ "]"
 
