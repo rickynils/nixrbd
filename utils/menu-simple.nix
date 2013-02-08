@@ -1,22 +1,31 @@
+{ request, ... }:
+
+with builtins;
 with import <nixpkgs> {};
 
 let
 
-  rewriteNixRoot = newRoot: path: 
-    newRoot + (builtins.substring 4 (builtins.stringLength path) path);
+  mkIpxe = s: writeText "script.ipxe" "#!ipxe\n${s}";
 
-in writeText "menu.ipxe" ''
-  #!ipxe
+  path = if request.pathInfo == [] then "" else head request.pathInfo;
 
-  :menu_root
-  menu Select a boot alternative
-  item memtest Run Memtest
-  item shell   Enter iPXE shell
-  choose target && goto ''${target} || goto menu_root
+  handlers = {
+    memtest = mkIpxe "chain ${memtest86plus}/memtest.bin";
 
-  :shell
-  shell && goto menu_root
+    default = mkIpxe ''
+      :menu_root
+      menu Select a boot alternative
+      item memtest Run Memtest
+      item iso     Run Slitaz Live CD
+      item shell   Enter iPXE shell
+      choose target && goto ''${target} || goto menu_root
 
-  :memtest
-  chain ${rewriteNixRoot "http://10.0.2.2:8000" "${memtest86plus}/memtest.bin"}
-''
+      :shell
+      shell && goto menu_root
+
+      :memtest
+      chain /memtest
+    '';
+  };
+
+in if hasAttr path handlers then getAttr path handlers else handlers.default

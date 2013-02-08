@@ -3,7 +3,7 @@ module Main where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
-import Data.List (intersperse)
+import Data.List (intersperse, intercalate)
 import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
@@ -63,7 +63,7 @@ app opts req = case (lookup p $ nixrbdMap opts, nixrbdDefaultExpr opts) of
     exists <- liftIO $ Dir.doesFileExist fp
     if exists then serveFile fp else respondNotFound fp
   where
-    build f = liftIO (nixBuild opts f) >>= either respondFailed serveFile
+    build f = liftIO (nixBuild (nixArgs opts req) f) >>= either respondFailed serveFile
     p = if null ps then "" else head ps
     ps = map T.unpack (pathInfo req)
     stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
@@ -78,10 +78,10 @@ app opts req = case (lookup p $ nixrbdMap opts, nixrbdDefaultExpr opts) of
       return $ ResponseFile status200 [] filePath Nothing
 
 
-nixBuild :: Nixrbd -> String -> IO (Either String String)
-nixBuild opts nixFile = do
-  let nixArgs = "-Q" : "-I" : intersperse "-I" (nixrbdNixPath opts)
-  (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" (nixFile:nixArgs) ""
+nixBuild :: [String] -> String -> IO (Either String String)
+nixBuild args file = do
+  putStrLn $ show args 
+  (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" (file:args) ""
   let [o1',e1'] = map (T.unpack . T.strip . T.pack) [o1,e1]
   if r1 /= ExitSuccess
     then return $ Left $ "nix-instantiate failed: "++e1'
@@ -95,3 +95,17 @@ nixBuild opts nixFile = do
           return $ if not exists
             then Left $ "nix-store output not a file: "++o2'
             else Right o2'
+
+
+nixArgs :: Nixrbd -> Request -> [String]
+nixArgs opts req =
+  "--arg" : "request" : reqToNix req :
+  "-Q" : "-I" : intersperse "-I" (nixrbdNixPath opts)
+
+listToNix xs = "[" ++ intercalate " " (map show xs) ++ "]"
+
+reqToNix req = concat 
+  [ "{"
+  , "pathInfo = ", listToNix (pathInfo req), ";"
+  , "}"
+  ]
