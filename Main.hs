@@ -3,7 +3,6 @@ module Main where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
-import Data.List (intersperse, intercalate)
 import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
@@ -79,9 +78,8 @@ app opts req = case (lookup p $ nixrbdMap opts, nixrbdDefaultExpr opts) of
 
 
 nixBuild :: [String] -> String -> IO (Either String String)
-nixBuild args file = do
-  putStrLn $ show args 
-  (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" (file:args) ""
+nixBuild as file = do
+  (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" (file:as) ""
   let [o1',e1'] = map (T.unpack . T.strip . T.pack) [o1,e1]
   if r1 /= ExitSuccess
     then return $ Left $ "nix-instantiate failed: "++e1'
@@ -102,8 +100,10 @@ nixArgs opts req =
   "--arg" : "request" : reqToNix req :
   "-Q" : concat [["-I",p] | p <- nixrbdNixPath opts]
 
-listToNix xs = "[" ++ intercalate " " (map show xs) ++ "]"
+listToNix :: Show a => [a] -> String
+listToNix xs = "[" ++ unwords (map show xs) ++ "]"
 
+reqToNix :: Request -> String
 reqToNix req = concat 
   [ "{"
   , "pathInfo = ", listToNix (pathInfo req), ";"
