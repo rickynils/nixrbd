@@ -20,4 +20,11 @@ cabal.mkDerivation (self: {
     wai
     warp
   ];
+  meta = {
+    homepage = https://github.com/rickynils/nixrbd;
+    description = "NixOS Remote Boot Daemon";
+    license = self.stdenv.lib.licenses.bsd3;
+    platforms = self.ghc.meta.platforms;
+    maintainers = [ self.stdenv.lib.maintainers.rickynils ];
+  };
 })
