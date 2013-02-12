@@ -3,13 +3,15 @@ module Main where
 
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
+import Data.List (isPrefixOf)
 import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
+import Network.Wai.Logger
 import qualified Network.Wai.Handler.Warp as W
 import System.Console.CmdArgs
 import System.Exit
-import System.FilePath (joinPath, makeValid)
+import System.FilePath
 import System.Process (readProcessWithExitCode)
 import qualified System.Directory as Dir
 
@@ -50,30 +52,35 @@ nixrbdDefs = Nixrbd
 main :: IO ()
 main = do
   opts <- cmdArgs nixrbdDefs
+  logger <- stdoutApacheLoggerInit FromSocket True
   let warpSettings = W.defaultSettings { W.settingsPort = nixrbdPort opts }
-  W.runSettings warpSettings $ app opts
+  W.runSettings warpSettings $ app logger opts
 
 
-app :: Nixrbd -> Application
-app opts req = case (lookup p $ nixrbdMap opts, nixrbdDefaultExpr opts) of
-  (Nothing, f) -> build f
-  (Just m, _) -> do
-    let fp = makeValid $ joinPath (m : tail ps)
+app :: ApacheLogger -> Nixrbd -> Application
+app logger opts req = case lookup root (nixrbdMap opts) of
+  Nothing -> do
+    buildRes <- liftIO $ nixBuild (nixArgs opts req) (nixrbdDefaultExpr opts)
+    either respondFailed serveFile buildRes
+  Just dir -> do
+    dir' <- liftIO $ Dir.canonicalizePath dir
+    fp <- liftIO $ Dir.canonicalizePath $ combine dir' $ joinPath $ tail ps
     exists <- liftIO $ Dir.doesFileExist fp
-    if exists then serveFile fp else respondNotFound fp
+    if exists && isPrefixOf dir' fp
+      then serveFile fp
+      else respondNotFound fp
   where
-    build f = liftIO (nixBuild (nixArgs opts req) f) >>= either respondFailed serveFile
-    p = if null ps then "" else head ps
+    root = if null ps then "" else head ps
     ps = map T.unpack (pathInfo req)
     stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
     respondFailed err = do
-      liftIO $ putStrLn $ "[500] Build failed for "++p++": "++err
-      stringResp internalServerError500 ("Failed building: "++p)
+      liftIO $ logger req internalServerError500 Nothing
+      stringResp internalServerError500 ("Failed building response: "++show err)
     respondNotFound fp = do
-      liftIO $ putStrLn $ "[404] No map for "++fp
+      liftIO $ logger req notFound404 Nothing
       stringResp notFound404 ("Not found: "++fp)
     serveFile filePath = do
-      liftIO $ putStrLn $ "[200] "++filePath
+      liftIO $ logger req status200 Nothing
       return $ ResponseFile status200 [] filePath Nothing
 
 

@@ -22,4 +22,5 @@ Executable nixrbd
                  text,
                  transformers,
                  wai,
+                 wai-logger,
                  warp
