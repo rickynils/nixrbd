@@ -47,7 +47,7 @@ nixrbdDefs = Nixrbd
     &= explicit
     &= name "d" &= name "default"
     &= help "A Nix file that should handle all requests"
-  } &= summary "Nix Remote Boot Daemon v0.0"
+  } &= summary "Nix Remote Boot Daemon v0.1.0"
 
 
 main :: IO ()
