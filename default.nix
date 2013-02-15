@@ -10,7 +10,7 @@ cabal.mkDerivation (self: {
   src = ./.;
   postInstall = ''
     mkdir -p $out/include
-    cp lib/nixrbd.nix $out/include/
+    cp lib/*.nix $out/include/
   '';
   buildDepends = [
     cmdargs

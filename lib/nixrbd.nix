@@ -2,6 +2,8 @@
 
 { writeText, lib }:
 
+with lib;
+
 rec {
   inherit (builtins) hasAttr getAttr attrNames head;
 
@@ -22,8 +24,10 @@ rec {
   mkMenu = entries:
     let
       entryNames = attrNames entries;
-      labels = lib.concatMapStrings (l: ":${l}\nchain /${l}\n") entryNames;
-      menuEntries = lib.concatMapStrings (l: "item ${l} ${(getAttr l entries).title}\n") entryNames;
+      labels = concatMapStrings
+        (l: ":${l}\nchain /${l}\n") entryNames;
+      menuEntries = concatMapStrings
+        (l: "item ${l} ${(getAttr l entries).title}\n") entryNames;
     in mkIpxe ''
       :__menu
       menu Select a boot alternative
@@ -32,10 +36,17 @@ rec {
       ${labels}
     '';
 
-   mkDefaultMenu = request: entries:
-     let
-       path = if request.pathInfo == [] then "" else head request.pathInfo;
-     in if hasAttr path entries
-       then mkIpxe ((getAttr path entries).script)
-       else mkMenu entries;
+  mkDefaultMenu = entries: request:
+    let
+      path = if request.pathInfo == [] then "" else head request.pathInfo;
+    in if hasAttr path entries
+      then mkIpxe ((getAttr path entries).script)
+      else mkMenu entries;
+
+  mkDefaultHandler = handler1: handler2: request:
+    let
+      path = if request.pathInfo == [] then "" else head request.pathInfo;
+    in if hasAttr path handler1
+      then getAttr path handler1
+      else handler2 request;
 }

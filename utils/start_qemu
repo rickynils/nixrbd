@@ -13,7 +13,7 @@ qemu=`nix-build -Q --no-out-link -A qemu "<nixpkgs>"`/bin/qemu-system-x86_64
 echo "qemu = $qemu"
 
 echo "Building ipxe..."
-ipxe=`nix-build -Q --no-out-link --argstr imageType iso --arg embeddedScript "$dir/chain.ipxe" "$dir/ipxe.nix"`
+ipxe=`nix-build -Q --no-out-link -A ipxe "$dir/ipxe.nix"`
 echo "ipxe = $ipxe"
 
 # Start nixrbd in the background, kill it on exit
