@@ -17,6 +17,7 @@ Executable nixrbd
                  cmdargs,
                  directory,
                  filepath,
+                 hslogger,
                  http-types,
                  process,
                  text,
