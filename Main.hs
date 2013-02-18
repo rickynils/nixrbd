@@ -1,6 +1,7 @@
-{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable, OverloadedStrings, TupleSections #-}
 module Main where
 
+import Control.Monad (msum)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
 import Data.List (isPrefixOf)
@@ -54,7 +55,6 @@ main :: IO ()
 main = do
   aplogger <- stdoutApacheLoggerInit FromSocket True
   updateGlobalLogger "nixrbd" (setLevel DEBUG)
-  infoM "nixrbd" "Initialising daemon"
   opts <- cmdArgs nixrbdDefs
   let warpSettings = W.defaultSettings { W.settingsPort = nixrbdPort opts }
   infoM "nixrbd" ("Listening on port "++show (nixrbdPort opts))
@@ -62,31 +62,34 @@ main = do
 
 
 app :: ApacheLogger -> Nixrbd -> Application
-app aplogger opts req = case lookup root (nixrbdMap opts) of
+app aplogger opts req = case lookupFirst subPathStrings (nixrbdMap opts) of
   Nothing -> do
     buildRes <- liftIO $ nixBuild (nixArgs opts req) (nixrbdDefaultExpr opts)
     either respondFailed serveFile buildRes
-  Just dir -> do
-    let fp = combine dir $ joinPath $ tail ps
+  Just (path,dir) -> do
+    let fp = combine dir $ drop (length path) (joinPath ps)
     exists <- liftIO $ Dir.doesFileExist fp
     if not exists then respondNotFound fp else do
       dir' <- liftIO $ Dir.canonicalizePath dir
       fp' <- liftIO $ Dir.canonicalizePath fp
-      if isPrefixOf dir' fp'
+      if dir' `isPrefixOf` fp'
         then serveFile fp'
         else respondNotFound fp'
   where
-    root = if null ps then "" else head ps
+    lookupFirst ks m = msum $ map (\k -> fmap (k,) (lookup k m)) ks
+    subPathStrings = map (concatMap ('/':)) (subPaths ps)
+    subPaths [] = []
+    subPaths xs = xs : subPaths (take (length xs - 1) xs)
     ps = map T.unpack (pathInfo req)
     stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
     respondFailed err = do
       liftIO $ errorM "nixrbd" ("Failure: "++show err)
       liftIO $ aplogger req internalServerError500 Nothing
-      stringResp internalServerError500 ("Failed building response")
+      stringResp internalServerError500 "Failed building response"
     respondNotFound fp = do
       liftIO $ infoM "nixrbd" ("Not found: "++fp)
       liftIO $ aplogger req notFound404 Nothing
-      stringResp notFound404 ("Not found: "++fp)
+      stringResp notFound404 "Not found"
     serveFile filePath = do
       liftIO $ infoM "nixrbd" ("Serve file: "++filePath)
       liftIO $ aplogger req status200 Nothing
@@ -123,7 +126,7 @@ listToNix :: Show a => [a] -> String
 listToNix xs = "[" ++ unwords (map show xs) ++ "]"
 
 reqToNix :: Request -> String
-reqToNix req = concat 
+reqToNix req = concat
   [ "{"
   , "pathInfo = ", listToNix (pathInfo req), ";"
   , "}"
