@@ -23,6 +23,7 @@ data Nixrbd = Nixrbd
   , nixrbdMap :: [(String,String)]
   , nixrbdNixPath :: [String]
   , nixrbdDefaultExpr :: FilePath
+  , nixrbdBehindProxy :: Bool
   } deriving (Show, Data, Typeable)
 
 nixrbdDefs :: Nixrbd
@@ -48,14 +49,19 @@ nixrbdDefs = Nixrbd
     &= explicit
     &= name "d" &= name "default"
     &= help "A Nix file that should handle all requests"
+  , nixrbdBehindProxy = False
+    &= explicit
+    &= name "b" &= name "proxied"
+    &= help "Wether nixrbd is running behind a proxy or not"
   } &= summary "Nix Remote Boot Daemon v0.1.0"
 
 
 main :: IO ()
 main = do
-  aplogger <- stdoutApacheLoggerInit FromSocket True
-  updateGlobalLogger "nixrbd" (setLevel DEBUG)
   opts <- cmdArgs nixrbdDefs
+  let addrSource = if nixrbdBehindProxy opts then FromHeader else FromSocket
+  aplogger <- stdoutApacheLoggerInit addrSource True
+  updateGlobalLogger "nixrbd" (setLevel DEBUG)
   let warpSettings = W.defaultSettings { W.settingsPort = nixrbdPort opts }
   infoM "nixrbd" ("Listening on port "++show (nixrbdPort opts))
   W.runSettings warpSettings $ app aplogger opts
