@@ -5,21 +5,20 @@ with callPackage ../lib/nixrbd.nix {};
 
 let 
 
-  handler = mkDefaultMenu {
-    memtest = {
-      title = "Run Memtest";
-      script = "chain ${memtest86plus}/memtest.bin";
+  handler = {
+    default = mkMenu {
+      memtest = "Run Memtest";
+      nixos = "Run Nixos";
     };
+
+    memtest = mkIpxe "chain ${memtest86plus}/memtest.bin";
   
-    nixos = {
-      title = "Run Nixos";
-      script = mkNixosBootEntry (
-        import <nixos> {
-          nixpkgs = <nixpkgs>;
-          configuration = <configuration.nix>;
-        }
-      );
-    };
+    nixos = mkNixosBootScript (
+      import <nixos> {
+        nixpkgs = <nixpkgs>;
+        configuration = <configuration.nix>;
+      }
+    );
   };
 
-in handler request
+in mkHandler request handler

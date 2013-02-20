@@ -21,13 +21,15 @@ rec {
     boot
   '';
 
+  mkNixosBootScript = nixos: mkIpxe (mkNixosBootEntry nixos);
+
   mkMenu = entries:
     let
       entryNames = attrNames entries;
       labels = concatMapStrings
         (l: ":${l}\nchain /${l}\n") entryNames;
       menuEntries = concatMapStrings
-        (l: "item ${l} ${(getAttr l entries).title}\n") entryNames;
+        (l: "item ${l} ${getAttr l entries}\n") entryNames;
     in mkIpxe ''
       :__menu
       menu Select a boot alternative
@@ -36,17 +38,10 @@ rec {
       ${labels}
     '';
 
-  mkDefaultMenu = entries: request:
+  mkHandler = request: handler:
     let
       path = if request.pathInfo == [] then "" else head request.pathInfo;
-    in if hasAttr path entries
-      then mkIpxe ((getAttr path entries).script)
-      else mkMenu entries;
-
-  mkDefaultHandler = handler1: handler2: request:
-    let
-      path = if request.pathInfo == [] then "" else head request.pathInfo;
-    in if hasAttr path handler1
-      then getAttr path handler1
-      else handler2 request;
+    in if hasAttr path handler
+      then getAttr path handler
+      else handler.default;
 }
