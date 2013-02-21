@@ -19,7 +19,7 @@ cabal.mkDerivation (self: {
     text
     transformers
     wai
-    waiLogger
+    waiExtra
     warp
   ];
   meta = {

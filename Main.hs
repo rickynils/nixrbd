@@ -4,13 +4,14 @@ module Main where
 import Control.Monad (msum)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
+import Data.Default (def)
 import Data.List (isPrefixOf)
 import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
-import Network.Wai.Logger
+import Network.Wai.Middleware.RequestLogger
 import qualified Network.Wai.Handler.Warp as W
-import System.Console.CmdArgs
+import System.Console.CmdArgs hiding (def)
 import System.Exit
 import System.FilePath
 import System.Log.Logger
@@ -60,15 +61,15 @@ main :: IO ()
 main = do
   opts <- cmdArgs nixrbdDefs
   let addrSource = if nixrbdBehindProxy opts then FromHeader else FromSocket
-  aplogger <- stdoutApacheLoggerInit addrSource True
+  reqLogger <- mkRequestLogger $ def { outputFormat = Apache addrSource }
   updateGlobalLogger "nixrbd" (setLevel DEBUG)
   let warpSettings = W.defaultSettings { W.settingsPort = nixrbdPort opts }
   infoM "nixrbd" ("Listening on port "++show (nixrbdPort opts))
-  W.runSettings warpSettings $ app aplogger opts
+  W.runSettings warpSettings $ reqLogger $ app opts
 
 
-app :: ApacheLogger -> Nixrbd -> Application
-app aplogger opts req = case lookupFirst subPathStrings (nixrbdMap opts) of
+app :: Nixrbd -> Application
+app opts req = case lookupFirst subPathStrings (nixrbdMap opts) of
   Nothing -> do
     buildRes <- liftIO $ nixBuild (nixArgs opts req) (nixrbdDefaultExpr opts)
     either respondFailed serveFile buildRes
@@ -90,15 +91,12 @@ app aplogger opts req = case lookupFirst subPathStrings (nixrbdMap opts) of
     stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
     respondFailed err = do
       liftIO $ errorM "nixrbd" ("Failure: "++show err)
-      liftIO $ aplogger req internalServerError500 Nothing
       stringResp internalServerError500 "Failed building response"
     respondNotFound fp = do
       liftIO $ infoM "nixrbd" ("Not found: "++fp)
-      liftIO $ aplogger req notFound404 Nothing
       stringResp notFound404 "Not found"
     serveFile filePath = do
       liftIO $ infoM "nixrbd" ("Serve file: "++filePath)
-      liftIO $ aplogger req status200 Nothing
       return $ ResponseFile status200 [] filePath Nothing
 
 
