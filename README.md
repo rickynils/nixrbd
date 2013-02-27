@@ -30,7 +30,7 @@ nixrbd.
 The following command launches nixrbd with a single request handler
 (`menu-simple.nix`):
 
-	nixrdb -d menu-simple.nix
+	nixrdb -r /,nix:///absolute/path/to/menu-simple.nix
 
 nixrbd will now run in the foreground and listen for HTTP requests on its
 default port 8000.
@@ -88,6 +88,6 @@ chain http://boot.ipxe.org/memtest.0
 ### Testing nixrbd together with iPXE
 The `utils` folder in the repository root includes a test script that automatically launches both a nixrbd instance and a qemu instances that boots with an iPXE image that chain-loads the script that nixrbd serves. This way, you can try out your boot scripts in a virtual environment. The following example makes use of a sample menu (`menu-simple.nix`) that also is bundled with nixrbd:
 
-	utils/start_qemu -d utils/menu-simple.nix
+	utils/start_qemu -r /nix/store,file:///nix/store -r /,nix://`pwd`/utils/menu-simple.nix
 
 All arguments to the script will be forwarded directly to `nixrbd`. The script will build nixrbd, ipxe and qemu, and bring up your boot menu/script in a qemu window.

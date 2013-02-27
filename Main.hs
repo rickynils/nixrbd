@@ -1,13 +1,18 @@
 {-# LANGUAGE DeriveDataTypeable, OverloadedStrings, TupleSections #-}
 module Main where
 
-import Control.Monad (msum)
+import Control.Monad.Error ()
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
+import Data.Char (isDigit)
 import Data.Default (def)
-import Data.List (isPrefixOf)
+import Data.List (isPrefixOf, find, sortBy)
+import Data.List.Split
+import Data.Maybe
+import Data.Ord
 import qualified Data.Text as T
 import Network.HTTP.Types
+import Network.URI (URI, parseURI, uriScheme, uriPath)
 import Network.Wai
 import Network.Wai.Middleware.RequestLogger
 import qualified Network.Wai.Handler.Warp as W
@@ -21,10 +26,9 @@ import qualified System.Directory as Dir
 data Nixrbd = Nixrbd
   { nixrbdPort :: Int
   , nixrbdConfigFile :: FilePath
-  , nixrbdMap :: [(String,String)]
   , nixrbdNixPath :: [String]
-  , nixrbdDefaultExpr :: FilePath
   , nixrbdBehindProxy :: Bool
+  , nixrbdRoutes :: [(String,String)]
   } deriving (Show, Data, Typeable)
 
 nixrbdDefs :: Nixrbd
@@ -38,56 +42,81 @@ nixrbdDefs = Nixrbd
     &= typFile
     &= name "c" &= name "configfile"
     &= help "Path to configuration file"
-  , nixrbdMap = []
-    &= explicit
-    &= name "m" &= name "map"
-    &= help "Map requests directly to static file directories"
   , nixrbdNixPath = []
     &= explicit
     &= name "I"
     &= help "Add a path used by nix-build"
-  , nixrbdDefaultExpr = ""
-    &= explicit
-    &= name "d" &= name "default"
-    &= help "A Nix file that should handle all requests"
   , nixrbdBehindProxy = False
     &= explicit
     &= name "b" &= name "proxied"
     &= help "Wether nixrbd is running behind a proxy or not"
-  } &= summary "Nix Remote Boot Daemon v0.1.0"
+  , nixrbdRoutes = []
+    &= explicit
+    &= name "r" &= name "route"
+    &= help "Add a route"
+  } &= summary "Nix Remote Boot Daemon v0.1.1"
+
+
+data Target = NixHandler FilePath
+            | StaticPath FilePath
+            | StaticResp Status
+            deriving (Show, Eq)
+
+type Path = [String]
+
+type Route = (Path,Target)
+
+parseRoute :: (String,String) -> Either String Route
+parseRoute (p,t) = do
+  let p' = split ((dropDelims . dropBlanks) (onSublist "/")) p
+  uri <- maybe (fail $ "Not an URI: "++t) return (parseURI t)
+  t' <- parseTarget uri
+  return (p',t')
+
+parseTarget :: URI -> Either String Target
+parseTarget uri = case uriScheme uri of
+  "nix:" -> return $ NixHandler (uriPath uri)
+  "file:" -> return $ StaticPath (uriPath uri)
+  "resp:" -> case reads (dropWhile (not . isDigit) (uriPath uri)) of
+    [(n,"")] -> return $ StaticResp (mkStatus n "")
+    _ -> fail $ "Not a valid response status: " ++ uriPath uri
+  s -> fail $ "Not a valid URI scheme: " ++ s
+
+lookupTarget :: Path -> [Route] -> (Target,Path)
+lookupTarget path routes = fromMaybe (StaticResp notFound404, path) $ do
+  let ordRoutes = sortBy (comparing ((0-) . length . fst)) routes
+  (prefix,t) <- find ((`isPrefixOf` path) . fst) ordRoutes
+  return (t, drop (length prefix) path)
 
 
 main :: IO ()
 main = do
   opts <- cmdArgs nixrbdDefs
+  routes <- either fail return (mapM parseRoute (nixrbdRoutes opts))
   let addrSource = if nixrbdBehindProxy opts then FromHeader else FromSocket
   reqLogger <- mkRequestLogger $ def { outputFormat = Apache addrSource }
   updateGlobalLogger "nixrbd" (setLevel DEBUG)
   let warpSettings = W.defaultSettings { W.settingsPort = nixrbdPort opts }
   infoM "nixrbd" ("Listening on port "++show (nixrbdPort opts))
-  W.runSettings warpSettings $ reqLogger $ app opts
+  W.runSettings warpSettings $ reqLogger $ app routes opts
 
 
-app :: Nixrbd -> Application
-app opts req = case lookupFirst subPathStrings (nixrbdMap opts) of
-  Nothing -> do
-    buildRes <- liftIO $ nixBuild (nixArgs opts req) (nixrbdDefaultExpr opts)
+app :: [Route] -> Nixrbd -> Application
+app routes opts req = case lookupTarget (map T.unpack (pathInfo req)) routes of
+  (NixHandler p, ps') -> do
+    buildRes <- liftIO $ nixBuild (nixArgs opts ps' req) p
     either respondFailed serveFile buildRes
-  Just (path,dir) -> do
-    let fp = combine dir $ drop (length path) (joinPath ps)
+  (StaticPath p, ps') -> do
+    let fp = combine p (joinPath ps')
     exists <- liftIO $ Dir.doesFileExist fp
     if not exists then respondNotFound fp else do
-      dir' <- liftIO $ Dir.canonicalizePath dir
+      p' <- liftIO $ Dir.canonicalizePath p
       fp' <- liftIO $ Dir.canonicalizePath fp
-      if dir' `isPrefixOf` fp'
+      if p' `isPrefixOf` fp'
         then serveFile fp'
         else respondNotFound fp'
+  (StaticResp s, _) -> stringResp s ""
   where
-    lookupFirst ks m = msum $ map (\k -> fmap (k,) (lookup k m)) ks
-    subPathStrings = map (concatMap ('/':)) (subPaths ps)
-    subPaths [] = []
-    subPaths xs = xs : subPaths (take (length xs - 1) xs)
-    ps = map T.unpack (pathInfo req)
     stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
     respondFailed err = do
       liftIO $ errorM "nixrbd" ("Failure: "++show err)
@@ -120,18 +149,19 @@ nixBuild as file = do
             else Right o2'
 
 
-nixArgs :: Nixrbd -> Request -> [String]
-nixArgs opts req =
-  "--arg" : "request" : reqToNix req :
+nixArgs :: Nixrbd -> Path -> Request -> [String]
+nixArgs opts path req =
+  "--arg" : "request" : reqToNix path req :
   "--show-trace" :
   "-Q" : concat [["-I",p] | p <- nixrbdNixPath opts]
 
 listToNix :: Show a => [a] -> String
 listToNix xs = "[" ++ unwords (map show xs) ++ "]"
 
-reqToNix :: Request -> String
-reqToNix req = concat
+reqToNix :: Path -> Request -> String
+reqToNix path req = concat
   [ "{"
-  , "pathInfo = ", listToNix (pathInfo req), ";"
+  , "fullPath = ", listToNix (pathInfo req), ";"
+  , "path = ", listToNix path, ";"
   , "}"
   ]

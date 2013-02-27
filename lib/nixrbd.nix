@@ -23,11 +23,17 @@ rec {
 
   mkNixosBootScript = nixos: mkIpxe (mkNixosBootEntry nixos);
 
-  mkMenu = entries:
+  pathPrefix = request: let
+    inherit (request) path fullPath;
+    l = builtins.length;
+    ps = take (builtins.sub (l fullPath) (l path)) fullPath;
+  in "${optionalString (ps != []) "/${concatStringsSep "/" ps}"}/";
+
+  mkMenu = request: entries:
     let
       entryNames = attrNames entries;
       labels = concatMapStrings
-        (l: ":${l}\nchain /${l}\n") entryNames;
+        (l: ":${l}\nchain ${pathPrefix request}${l}\n") entryNames;
       menuEntries = concatMapStrings
         (l: "item ${l} ${getAttr l entries}\n") entryNames;
     in mkIpxe ''
@@ -40,7 +46,7 @@ rec {
 
   mkHandler = request: handler:
     let
-      path = if request.pathInfo == [] then "" else head request.pathInfo;
+      path = if request.path == [] then "" else head request.path;
     in if hasAttr path handler
       then getAttr path handler
       else handler.default;

@@ -4,7 +4,7 @@ with haskellPackages;
 
 cabal.mkDerivation (self: {
   pname = "nixrbd";
-  version = "0.1.0";
+  version = "0.1.1";
   isLibrary = false;
   isExecutable = true;
   src = ./.;
@@ -16,6 +16,7 @@ cabal.mkDerivation (self: {
     cmdargs
     hslogger
     httpTypes
+    split
     text
     transformers
     wai

@@ -6,7 +6,7 @@ with callPackage ../lib/nixrbd.nix {};
 let 
 
   handler = {
-    default = mkMenu {
+    default = mkMenu request {
       memtest = "Run Memtest";
       nixos = "Run Nixos";
     };

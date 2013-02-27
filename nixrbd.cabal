@@ -1,5 +1,5 @@
 Name:            nixrbd
-Version:         0.1.0
+Version:         0.1.1
 Synopsis:        NixOS Remote Boot Daemon
 Description:     NixOS Remote Boot Daemon
 Author:          Rickard Nilsson
@@ -20,7 +20,10 @@ Executable nixrbd
                  filepath,
                  hslogger,
                  http-types,
+                 mtl,
+                 network,
                  process,
+                 split,
                  text,
                  transformers,
                  wai,
