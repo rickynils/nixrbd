@@ -1,7 +1,11 @@
 # nixrbd - NixOS Remote Boot Daemon
 A daemon that serves NixOS clients booting over iPXE.
 
-This project is under initial development, and not usable for the time being.
+This project is under active development. It is perfectly usable right now, but
+the feature set and command syntax can change without any notice. I will do my
+best to keep this README up to date with the current code, but I make no
+promises. There is a version number defined in the code, but it has no real
+connection to the current state of the code. There are no proper releases yet.
 
 
 ## Build and install
@@ -40,11 +44,12 @@ A request handler is a Nix expression that should be buildable with
 request, nixrbd will build the expression and serve the resulting file to the
 HTTP client.
 
-In the example above, the `menu-simple.nix` can be found in the `utils`
-directory and has the following content:
+In the example above, the `menu-simple.nix` could look like this:
 
 ```
-with import <nixpkgs> {}; 
+{ request, ... }:
+
+with import <nixpkgs> {};
 
 writeText "menu.ipxe" ''
   #!ipxe
@@ -86,8 +91,15 @@ chain http://boot.ipxe.org/memtest.0
 ```
 
 ### Testing nixrbd together with iPXE
-The `utils` folder in the repository root includes a test script that automatically launches both a nixrbd instance and a qemu instances that boots with an iPXE image that chain-loads the script that nixrbd serves. This way, you can try out your boot scripts in a virtual environment. The following example makes use of a sample menu (`menu-simple.nix`) that also is bundled with nixrbd:
+The `utils` folder in the repository root includes a test script that
+automatically launches both a nixrbd instance and a qemu instances that boots
+with an iPXE image that chain-loads the script that nixrbd serves. This way,
+you can try out your boot scripts in a virtual environment. The following
+example makes use of a sample menu (`menu-simple.nix`) that also is bundled
+with nixrbd:
 
 	utils/start_qemu -r /nix/store,file:///nix/store -r /,nix://`pwd`/utils/menu-simple.nix
 
-All arguments to the script will be forwarded directly to `nixrbd`. The script will build nixrbd, ipxe and qemu, and bring up your boot menu/script in a qemu window.
+All arguments to the script will be forwarded directly to `nixrbd`. The script
+will build nixrbd, ipxe and qemu, and bring up your boot menu/script in a qemu
+window.
