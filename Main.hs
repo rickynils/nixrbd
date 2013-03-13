@@ -1,18 +1,14 @@
 {-# LANGUAGE DeriveDataTypeable, OverloadedStrings, TupleSections #-}
 module Main where
 
+import Route
 import Control.Monad.Error ()
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
-import Data.Char (isDigit)
 import Data.Default (def)
-import Data.List (isPrefixOf, find, sortBy)
-import Data.List.Split
-import Data.Maybe
-import Data.Ord
+import Data.List (isPrefixOf)
 import qualified Data.Text as T
 import Network.HTTP.Types
-import Network.URI (URI, parseURI, uriScheme, uriPath)
 import Network.Wai
 import Network.Wai.Middleware.RequestLogger
 import qualified Network.Wai.Handler.Warp as W
@@ -57,38 +53,6 @@ nixrbdDefs = Nixrbd
   } &= summary "Nix Remote Boot Daemon v0.1.1"
 
 
-data Target = NixHandler FilePath
-            | StaticPath FilePath
-            | StaticResp Status
-            deriving (Show, Eq)
-
-type Path = [String]
-
-type Route = (Path,Target)
-
-parseRoute :: (String,String) -> Either String Route
-parseRoute (p,t) = do
-  let p' = split ((dropDelims . dropBlanks) (onSublist "/")) p
-  uri <- maybe (fail $ "Not an URI: "++t) return (parseURI t)
-  t' <- parseTarget uri
-  return (p',t')
-
-parseTarget :: URI -> Either String Target
-parseTarget uri = case uriScheme uri of
-  "nix:" -> return $ NixHandler (uriPath uri)
-  "file:" -> return $ StaticPath (uriPath uri)
-  "resp:" -> case reads (dropWhile (not . isDigit) (uriPath uri)) of
-    [(n,"")] -> return $ StaticResp (mkStatus n "")
-    _ -> fail $ "Not a valid response status: " ++ uriPath uri
-  s -> fail $ "Not a valid URI scheme: " ++ s
-
-lookupTarget :: Path -> [Route] -> (Target,Path)
-lookupTarget path routes = fromMaybe (StaticResp notFound404, path) $ do
-  let ordRoutes = sortBy (comparing ((0-) . length . fst)) routes
-  (prefix,t) <- find ((`isPrefixOf` path) . fst) ordRoutes
-  return (t, drop (length prefix) path)
-
-
 main :: IO ()
 main = do
   opts <- cmdArgs nixrbdDefs
@@ -102,7 +66,7 @@ main = do
 
 
 app :: [Route] -> Nixrbd -> Application
-app routes opts req = case lookupTarget (map T.unpack (pathInfo req)) routes of
+app routes opts req = case lookupTarget req routes of
   (NixHandler p, ps') -> do
     buildRes <- liftIO $ nixBuild (nixArgs opts ps' req) p
     either respondFailed serveFile buildRes
