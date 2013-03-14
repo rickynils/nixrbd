@@ -14,7 +14,7 @@ stdenv.mkDerivation {
     sha256 = "11b15myz7s3vgk2lja95c5cvgf2yhcjjyhy0ka2zij5zlyivjm4d";
   };
 
-  buildNativeInputs = [ perl syslinux cdrkit which coreutils ];
+  buildInputs = [ perl syslinux cdrkit which coreutils ];
 
   phases = [ "unpackPhase" "buildPhase" "installPhase" ];
 
