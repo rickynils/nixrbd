@@ -1,61 +1,27 @@
-{-# LANGUAGE DeriveDataTypeable, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Main where
 
 import Route
+import Nix
+import Conf
+
 import Control.Monad.Error ()
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.Lazy.Char8 (pack)
 import Data.Default (def)
 import Data.List (isPrefixOf)
-import qualified Data.Text as T
 import Network.HTTP.Types
 import Network.Wai
 import Network.Wai.Middleware.RequestLogger
 import qualified Network.Wai.Handler.Warp as W
-import System.Console.CmdArgs hiding (def)
-import System.Exit
 import System.FilePath
 import System.Log.Logger
-import System.Process (readProcessWithExitCode)
 import qualified System.Directory as Dir
-
-data Nixrbd = Nixrbd
-  { nixrbdPort :: Int
-  , nixrbdConfigFile :: FilePath
-  , nixrbdNixPath :: [String]
-  , nixrbdBehindProxy :: Bool
-  , nixrbdRoutes :: [(String,String)]
-  } deriving (Show, Data, Typeable)
-
-nixrbdDefs :: Nixrbd
-nixrbdDefs = Nixrbd
-  { nixrbdPort = 8000
-    &= explicit
-    &= name "p" &= name "port"
-    &= help "TCP port to bind to"
-  , nixrbdConfigFile = ""
-    &= explicit
-    &= typFile
-    &= name "c" &= name "configfile"
-    &= help "Path to configuration file"
-  , nixrbdNixPath = []
-    &= explicit
-    &= name "I"
-    &= help "Add a path used by nix-build"
-  , nixrbdBehindProxy = False
-    &= explicit
-    &= name "b" &= name "proxied"
-    &= help "Wether nixrbd is running behind a proxy or not"
-  , nixrbdRoutes = []
-    &= explicit
-    &= name "r" &= name "route"
-    &= help "Add a route"
-  } &= summary "Nix Remote Boot Daemon v0.1.1"
-
 
 main :: IO ()
 main = do
-  opts <- cmdArgs nixrbdDefs
+  opts <- parseOpts
   routes <- either fail return (mapM parseRoute (nixrbdRoutes opts))
   let addrSource = if nixrbdBehindProxy opts then FromHeader else FromSocket
   reqLogger <- mkRequestLogger $ def { outputFormat = Apache addrSource }
@@ -68,7 +34,7 @@ main = do
 app :: [Route] -> Nixrbd -> Application
 app routes opts req = case lookupTarget req routes of
   (NixHandler p, ps') -> do
-    buildRes <- liftIO $ nixBuild (nixArgs opts ps' req) p
+    buildRes <- liftIO $ nixBuild opts req p ps'
     either respondFailed serveFile buildRes
   (StaticPath p, ps') -> do
     let fp = combine p (joinPath ps')
@@ -91,41 +57,3 @@ app routes opts req = case lookupTarget req routes of
     serveFile filePath = do
       liftIO $ infoM "nixrbd" ("Serve file: "++filePath)
       return $ ResponseFile status200 [] filePath Nothing
-
-
-nixBuild :: [String] -> String -> IO (Either String String)
-nixBuild as file = do
-  infoM "nixrbd" ("Executing nix-instantiate " ++ unwords (file:as))
-  (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" (file:as) ""
-  let [o1',e1'] = map (T.unpack . T.strip . T.pack) [o1,e1]
-  if r1 /= ExitSuccess
-    then return $ Left $ "nix-instantiate failed: "++e1'
-    else do
-      infoM "nixrbd" ("Executing nix-build "++o1')
-      (r2,o2,e2) <- readProcessWithExitCode "nix-store" ["-r",o1'] ""
-      let [o2',e2'] = map (T.unpack . T.strip . T.pack) [o2,e2]
-      if r2 /= ExitSuccess
-        then return $ Left $ "nix-store failed: "++e2'
-        else do
-          exists <- Dir.doesFileExist o2'
-          return $ if not exists
-            then Left $ "nix-store output not a file: "++o2'
-            else Right o2'
-
-
-nixArgs :: Nixrbd -> Path -> Request -> [String]
-nixArgs opts path req =
-  "--arg" : "request" : reqToNix path req :
-  "--show-trace" :
-  "-Q" : concat [["-I",p] | p <- nixrbdNixPath opts]
-
-listToNix :: Show a => [a] -> String
-listToNix xs = "[" ++ unwords (map show xs) ++ "]"
-
-reqToNix :: Path -> Request -> String
-reqToNix path req = concat
-  [ "{"
-  , "fullPath = ", listToNix (pathInfo req), ";"
-  , "path = ", listToNix path, ";"
-  , "}"
-  ]

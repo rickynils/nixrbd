@@ -11,7 +11,7 @@ Cabal-version:   >=1.2
 
 Executable nixrbd
   Main-Is:       Main.hs
-  Other-Modules: Route
+  Other-Modules: Route Nix Conf
   GHC-Options:   -Wall -O2 -threaded
   Build-Depends: base >= 4 && < 5,
                  bytestring,
