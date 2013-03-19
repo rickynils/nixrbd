@@ -55,5 +55,6 @@ app routes opts req = case lookupTarget req routes of
       liftIO $ infoM "nixrbd" ("Not found: "++fp)
       stringResp notFound404 "Not found"
     serveFile filePath = do
-      liftIO $ infoM "nixrbd" ("Serve file: "++filePath)
-      return $ ResponseFile status200 [] filePath Nothing
+      filePath' <- liftIO $ Dir.canonicalizePath filePath
+      liftIO $ infoM "nixrbd" ("Serve file: "++filePath')
+      return $ ResponseFile status200 [] filePath' Nothing

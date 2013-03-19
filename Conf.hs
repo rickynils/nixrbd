@@ -13,6 +13,7 @@ data Nixrbd = Nixrbd
   , nixrbdNixPath :: [String]
   , nixrbdBehindProxy :: Bool
   , nixrbdRoutes :: [(String,String)]
+  , nixrbdBuildDir :: FilePath
   } deriving (Show, Data, Typeable)
 
 parseOpts :: IO Nixrbd
@@ -41,4 +42,8 @@ nixrbdDefs = Nixrbd
     &= explicit
     &= name "r" &= name "route"
     &= help "Add a route"
+  , nixrbdBuildDir = ""
+    &= explicit
+    &= name "d" &= name "builddir"
+    &= help "Directory to store build result symlinks in"
   } &= summary "Nix Remote Boot Daemon v0.1.1"
