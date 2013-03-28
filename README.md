@@ -90,6 +90,38 @@ shell && goto menu_root
 chain http://boot.ipxe.org/memtest.0
 ```
 
+### Routes
+When launching nixrbd you can give it an arbitrary number of routes as `-r` or
+`--route` command line options. Each route has the following form:
+
+```
+<request uri>,<response uri>
+```
+
+The request URI is relative the root (the initial `/` is optional), and nixrbd
+will match every incoming requests against all specified routes. The most
+specific route that still matches the request will be picked. Say you have the
+following routes defined:
+
+```
+-r /foo,<B>
+-r /,<A>
+-r /foo?host=myhost,<C>
+```
+
+Then the requests would be handled as below:
+
+```
+/                    -> A
+/foobar              -> A
+/foo/bar             -> B
+/foo?host=yourhost   -> B
+/foo/bar?host=myhost -> C
+```
+
+The route target (the response URI) can be of tree types: static file, nix
+build and empty response with pre-defined status code.
+
 ### Testing nixrbd together with iPXE
 The `utils` folder in the repository root includes a test script that
 automatically launches both a nixrbd instance and a qemu instances that boots
