@@ -57,4 +57,4 @@ app routes opts req = case lookupTarget req routes of
     serveFile filePath = do
       filePath' <- liftIO $ Dir.canonicalizePath filePath
       liftIO $ infoM "nixrbd" ("Serve file: "++filePath')
-      return $ ResponseFile status200 [] filePath' Nothing
+      return $ responseFile status200 [] filePath' Nothing
