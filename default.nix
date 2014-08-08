@@ -14,6 +14,7 @@ cabal.mkDerivation (self: {
   '';
   buildDepends = [
     cmdargs
+    dataDefault
     hslogger
     httpTypes
     split
