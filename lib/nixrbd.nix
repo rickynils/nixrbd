@@ -13,7 +13,7 @@ rec {
 
   mkKernelEntry = nixos: let sys = nixos.system; cfg = nixos.config; in
     "kernel ${sys}/kernel systemConfig=${sys} init=${sys}/init " +
-    builtins.toString (cfg.boot.kernelParams ++ cfg.boot.extraKernelParams);
+    builtins.toString cfg.boot.kernelParams;
 
   mkNixosBootEntry = nixos: ''
     ${mkInitrdEntry nixos}
