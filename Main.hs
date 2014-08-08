@@ -26,13 +26,13 @@ main = do
   let addrSource = if nixrbdBehindProxy opts then FromHeader else FromSocket
   reqLogger <- mkRequestLogger $ def { outputFormat = Apache addrSource }
   updateGlobalLogger "nixrbd" (setLevel DEBUG)
-  let warpSettings = W.defaultSettings { W.settingsPort = nixrbdPort opts }
+  let warpSettings = W.setPort (nixrbdPort opts ) W.defaultSettings
   infoM "nixrbd" ("Listening on port "++show (nixrbdPort opts))
   W.runSettings warpSettings $ reqLogger $ app routes opts
 
 
 app :: [Route] -> Nixrbd -> Application
-app routes opts req = case lookupTarget req routes of
+app routes opts req respond = case lookupTarget req routes of
   (NixHandler p, ps') -> do
     buildRes <- liftIO $ nixBuild opts req p ps'
     either respondFailed serveFile buildRes
@@ -47,7 +47,7 @@ app routes opts req = case lookupTarget req routes of
         else respondNotFound fp'
   (StaticResp s, _) -> stringResp s ""
   where
-    stringResp s = return . responseLBS s [("Content-Type","text/plain")] . pack
+    stringResp s = respond . responseLBS s [("Content-Type","text/plain")] . pack
     respondFailed err = do
       liftIO $ errorM "nixrbd" ("Failure: "++show err)
       stringResp internalServerError500 "Failed building response"
@@ -57,4 +57,4 @@ app routes opts req = case lookupTarget req routes of
     serveFile filePath = do
       filePath' <- liftIO $ Dir.canonicalizePath filePath
       liftIO $ infoM "nixrbd" ("Serve file: "++filePath')
-      return $ responseFile status200 [] filePath' Nothing
+      respond $ responseFile status200 [] filePath' Nothing
