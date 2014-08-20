@@ -9,15 +9,22 @@ rec {
 
   mkIpxe = s: writeText "script.ipxe" "#!ipxe\n${s}";
 
-  mkInitrdEntry = nixos: "initrd ${nixos.system}/initrd";
+  mkInitrdEntry = nixosPath: "initrd ${nixosPath}/initrd";
 
-  mkKernelEntry = nixos: let sys = nixos.system; cfg = nixos.config; in
-    "kernel ${sys}/kernel systemConfig=${sys} init=${sys}/init " +
-    builtins.toString cfg.boot.kernelParams;
+  mkKernelEntry = nixosPath:
+    "kernel ${nixosPath}/kernel systemConfig=${nixosPath} " +
+    "init=${nixosPath}/init " +
+    builtins.readFile "${nixosPath}/kernel-params";
 
   mkNixosBootEntry = nixos: ''
-    ${mkInitrdEntry nixos}
-    ${mkKernelEntry nixos}
+    ${mkInitrdEntry "${nixos.system}"}
+    ${mkKernelEntry "${nixos.system}"}
+    boot
+  '';
+
+  mkNixosBootEntryFromPath = nixosPath: ''
+    ${mkInitrdEntry nixosPath}
+    ${mkKernelEntry nixosPath}
     boot
   '';
 
