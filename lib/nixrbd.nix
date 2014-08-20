@@ -11,20 +11,24 @@ rec {
 
   mkInitrdEntry = nixosPath: "initrd ${nixosPath}/initrd";
 
-  mkKernelEntry = nixosPath:
+  mkKernelEntry = nixos: let sys = nixos.system; cfg = nixos.config; in
+    "kernel ${sys}/kernel systemConfig=${sys} init=${sys}/init " +
+    builtins.toString cfg.boot.kernelParams;
+
+  mkKernelEntryFromPath = nixosPath:
     "kernel ${nixosPath}/kernel systemConfig=${nixosPath} " +
     "init=${nixosPath}/init " +
     builtins.readFile "${nixosPath}/kernel-params";
 
   mkNixosBootEntry = nixos: ''
     ${mkInitrdEntry "${nixos.system}"}
-    ${mkKernelEntry "${nixos.system}"}
+    ${mkKernelEntry nixos}
     boot
   '';
 
   mkNixosBootEntryFromPath = nixosPath: ''
     ${mkInitrdEntry nixosPath}
-    ${mkKernelEntry nixosPath}
+    ${mkKernelEntryFromPath nixosPath}
     boot
   '';
 
