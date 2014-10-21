@@ -17,6 +17,7 @@ cabal.mkDerivation (self: {
     dataDefault
     hslogger
     httpTypes
+    networkUri
     split
     text
     transformers
