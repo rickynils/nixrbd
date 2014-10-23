@@ -14,9 +14,9 @@ import System.Process (readProcessWithExitCode)
 import System.Directory
 import qualified Data.Text as T
 
-nixBuild :: Nixrbd -> Request -> String -> Path -> IO (Either String String)
-nixBuild conf req file path = do
-  let buildArgs = nixBuildArgs conf file path req
+nixBuild :: Nixrbd -> Request -> String -> [String] -> Path -> IO (Either String String)
+nixBuild conf req file nixpaths path = do
+  let buildArgs = nixBuildArgs conf file path nixpaths req
   infoM "nixrbd" ("Executing nix-instantiate " ++ unwords buildArgs)
   (r1,o1,e1) <- readProcessWithExitCode "nix-instantiate" buildArgs ""
   let [o1',e1'] = map (T.unpack . T.strip . T.pack) [o1,e1]
@@ -56,10 +56,10 @@ reqToNix path req = concat
   , "}"
   ]
 
-nixBuildArgs :: Nixrbd -> FilePath -> Path -> Request -> [String]
-nixBuildArgs opts file path req =
+nixBuildArgs :: Nixrbd -> FilePath -> Path -> [String] -> Request -> [String]
+nixBuildArgs opts file path nixpaths req =
   file : "--arg" : "request" : reqToNix path req : "--show-trace" :
-  "-Q" : concat [["-I",p] | p <- nixrbdNixPath opts]
+  "-Q" : concat [["-I",p] | p <- (nixrbdNixPath opts) ++ nixpaths]
 
 nixStoreArgs :: Nixrbd -> FilePath -> IO [String]
 nixStoreArgs conf drvPath = do

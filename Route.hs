@@ -19,7 +19,9 @@ import Network.HTTP.Types
 import Network.URI
 import Network.Wai
 
-data Target = NixHandler FilePath
+type NixPathElem = String
+
+data Target = NixHandler FilePath [NixPathElem]
             | StaticPath FilePath
             | StaticResp Status
             deriving (Show, Eq)
@@ -46,7 +48,7 @@ lookupTarget req routes = fromMaybe (StaticResp notFound404, reqPath req) $ do
 
 parseTarget :: URI -> Either String Target
 parseTarget uri = case uriScheme uri of
-  "nix:" -> return $ NixHandler (uriPath uri)
+  "nix:" -> return $ NixHandler (uriPath uri) []
   "file:" -> return $ StaticPath (uriPath uri)
   "resp:" -> case reads (dropWhile (not . isDigit) (uriPath uri)) of
     [(n,"")] -> return $ StaticResp (mkStatus n "")

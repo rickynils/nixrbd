@@ -33,8 +33,8 @@ main = do
 
 app :: [Route] -> Nixrbd -> Application
 app routes opts req respond = case lookupTarget req routes of
-  (NixHandler p, ps') -> do
-    buildRes <- liftIO $ nixBuild opts req p ps'
+  (NixHandler p nixpaths, ps') -> do
+    buildRes <- liftIO $ nixBuild opts req p nixpaths ps'
     either respondFailed serveFile buildRes
   (StaticPath p, ps') -> do
     let fp = combine p (joinPath ps')
