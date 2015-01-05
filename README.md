@@ -13,7 +13,7 @@ connection to the current state of the code. There are no proper releases yet.
 It easy to build nixrbd if you have Nix set up properly. Run the following
 command in the repository root:
 
-	nix-env -i -A nixrbd -f pkgs.nix
+	nix-env -i -A build -f release.nix
 
 This will install nixrbd in your Nix profile and make it available in your
 path.
